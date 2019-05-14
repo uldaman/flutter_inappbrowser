@@ -69,7 +69,32 @@ let resourceObserverJS = """
 
 let JAVASCRIPT_BRIDGE_NAME = "flutter_inappbrowser"
 
-let javaScriptBridgeJS = """
+// window.connex = {}
+// window.connex.thor = {}
+// window.connex.thor.genesis = {}
+// window.connex.thor.genesis.id = '0x00000000851caf3cfdb6e899cf5958bfb1ac3413d346d43539627e6be7ec1b4a'
+
+let pageChangeEmitJs = """
+window.addEventListener('unload',function(e){
+    window.flutter_inappbrowser.callHandler('pageChange');
+});
+window.addEventListener('hashchange', function(e) {
+    window.flutter_inappbrowser.callHandler('pageChange');
+});
+var pushState = history.pushState;
+history.pushState = function(state) {
+    if (typeof history.onpushstate == "function") {
+        history.onpushstate({state: state});
+    }
+    window.flutter_inappbrowser.callHandler('pageChange');
+    return pushState.apply(history, arguments);
+};
+window.addEventListener('popstate',function(e){
+    window.flutter_inappbrowser.callHandler('pageChange');
+});
+"""
+
+let javaScriptBridgeJS = pageChangeEmitJs + """
 window.\(JAVASCRIPT_BRIDGE_NAME) = {};
 window.\(JAVASCRIPT_BRIDGE_NAME).callHandler = function() {
     var _callHandlerID = setTimeout(function(){});
@@ -83,14 +108,14 @@ window.\(JAVASCRIPT_BRIDGE_NAME).callHandler = function() {
 let platformReadyJS = "window.dispatchEvent(new Event('flutterInAppBrowserPlatformReady'));";
 
 public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler {
-    
+
     var IABController: InAppBrowserWebViewController?
     var IAWController: FlutterWebViewController?
     var options: InAppWebViewOptions?
     var currentURL: URL?
     var WKNavigationMap: [String: [String: Any]] = [:]
     var startPageTime: Int64 = 0
-    
+
     init(frame: CGRect, configuration: WKWebViewConfiguration, IABController: InAppBrowserWebViewController?, IAWController: FlutterWebViewController?) {
         super.init(frame: frame, configuration: configuration)
         self.IABController = IABController
@@ -99,17 +124,17 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
         navigationDelegate = self
         scrollView.delegate = self
     }
-    
+
     required public init(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)!
     }
-    
+
     public func prepare() {
         addObserver(self,
                     forKeyPath: #keyPath(WKWebView.estimatedProgress),
                     options: .new,
                     context: nil)
-        
+
         configuration.userContentController = WKUserContentController()
         configuration.preferences = WKPreferences()
         
@@ -132,18 +157,18 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
                 }
             }
         }
-        
+
         if (options?.enableViewportScale)! {
             let jscript = "var meta = document.createElement('meta'); meta.setAttribute('name', 'viewport'); meta.setAttribute('content', 'width=device-width'); document.getElementsByTagName('head')[0].appendChild(meta);"
             let userScript = WKUserScript(source: jscript, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
             configuration.userContentController.addUserScript(userScript)
         }
-        
+
         // Prevents long press on links that cause WKWebView exit
         let jscriptWebkitTouchCallout = WKUserScript(source: "document.body.style.webkitTouchCallout='none';", injectionTime: .atDocumentEnd, forMainFrameOnly: true)
         configuration.userContentController.addUserScript(jscriptWebkitTouchCallout)
-        
-        
+
+
         let consoleLogJSScript = WKUserScript(source: consoleLogJS, injectionTime: .atDocumentStart, forMainFrameOnly: false)
         configuration.userContentController.addUserScript(consoleLogJSScript)
         configuration.userContentController.add(self, name: "consoleLog")
@@ -151,11 +176,11 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
         configuration.userContentController.add(self, name: "consoleError")
         configuration.userContentController.add(self, name: "consoleInfo")
         configuration.userContentController.add(self, name: "consoleWarn")
-        
+
         let javaScriptBridgeJSScript = WKUserScript(source: javaScriptBridgeJS, injectionTime: .atDocumentStart, forMainFrameOnly: false)
         configuration.userContentController.addUserScript(javaScriptBridgeJSScript)
         configuration.userContentController.add(self, name: "callHandler")
-        
+
         let resourceObserverJSScript = WKUserScript(source: resourceObserverJS, injectionTime: .atDocumentStart, forMainFrameOnly: false)
         configuration.userContentController.addUserScript(resourceObserverJSScript)
         configuration.userContentController.add(self, name: "resourceLoaded")
@@ -167,7 +192,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
         if #available(iOS 9.0, *) {
             allowsLinkPreview = (options?.allowsLinkPreview)!
         }
-        
+
         if #available(iOS 10.0, *) {
             configuration.ignoresViewportScaleLimits = (options?.ignoresViewportScaleLimits)!
         }
@@ -175,17 +200,17 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
         if #available(iOS 9.0, *) {
             configuration.allowsPictureInPictureMediaPlayback = (options?.allowsPictureInPictureMediaPlayback)!
         }
-        
+
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = (options?.javaScriptCanOpenWindowsAutomatically)!
-        
+
         configuration.preferences.javaScriptEnabled = (options?.javaScriptEnabled)!
-        
+
         if ((options?.userAgent)! != "") {
             if #available(iOS 9.0, *) {
                 customUserAgent = (options?.userAgent)!
             }
         }
-        
+
         if (options?.clearCache)! {
             clearCache()
         }
@@ -205,7 +230,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
         
         return configuration
     }
-    
+
     override public func observeValue(forKeyPath keyPath: String?, of object: Any?,
                                change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
         if keyPath == "estimatedProgress" {
@@ -213,7 +238,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
             onProgressChanged(progress: progress)
         }
     }
-    
+
     public func goBackOrForward(steps: Int) {
         if canGoBackOrForward(steps: steps) {
             if (steps > 0) {
@@ -227,14 +252,14 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
             }
         }
     }
-    
+
     public func canGoBackOrForward(steps: Int) -> Bool {
         let currentIndex = self.backForwardList.backList.count
         return (steps >= 0)
             ? steps <= self.backForwardList.forwardList.count
             : currentIndex + steps >= 0
     }
-    
+
     public func takeScreenshot (completionHandler: @escaping (_ screenshot: Data?) -> Void) {
         if #available(iOS 11.0, *) {
             takeSnapshot(with: nil, completionHandler: {(image, error) -> Void in
@@ -248,7 +273,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
             completionHandler(nil)
         }
     }
-    
+
     public func loadUrl(url: URL, headers: [String: String]?) {
         var request = URLRequest(url: url)
         currentURL = url
@@ -262,13 +287,13 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
         }
         load(request)
     }
-    
+
     public func postUrl(url: URL, postData: Data, completionHandler: @escaping () -> Void) {
         var request = URLRequest(url: url)
         currentURL = url
         request.httpMethod = "POST"
         request.httpBody = postData
-        
+
         let task = URLSession.shared.dataTask(with: request) { (data : Data?, response : URLResponse?, error : Error?) in
             var returnString = ""
             if data != nil {
@@ -281,7 +306,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
         }
         task.resume()
     }
-    
+
     public func loadData(data: String, mimeType: String, encoding: String, baseUrl: String) {
         let url = URL(string: baseUrl)!
         currentURL = url
@@ -291,7 +316,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
             loadHTMLString(data, baseURL: url)
         }
     }
-    
+
     public func loadFile(url: String, headers: [String: String]?) throws {
         let key = SwiftFlutterPlugin.registrar!.lookupKey(forAsset: url)
         let assetURL = Bundle.main.url(forResource: key, withExtension: nil)
@@ -327,12 +352,12 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
                 }
             }
         }
-        
+
         if newOptionsMap["enableViewportScale"] != nil && options?.enableViewportScale != newOptions.enableViewportScale && newOptions.enableViewportScale {
             let jscript = "var meta = document.createElement('meta'); meta.setAttribute('name', 'viewport'); meta.setAttribute('content', 'width=device-width'); document.getElementsByTagName('head')[0].appendChild(meta);"
             evaluateJavaScript(jscript, completionHandler: nil)
         }
-        
+
         if newOptionsMap["mediaPlaybackRequiresUserGesture"] != nil && options?.mediaPlaybackRequiresUserGesture != newOptions.mediaPlaybackRequiresUserGesture {
             if #available(iOS 10.0, *) {
                 configuration.mediaTypesRequiringUserActionForPlayback = (newOptions.mediaPlaybackRequiresUserGesture) ? .all : []
@@ -341,73 +366,73 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
                 configuration.mediaPlaybackRequiresUserAction = newOptions.mediaPlaybackRequiresUserGesture
             }
         }
-        
+
         if newOptionsMap["allowsInlineMediaPlayback"] != nil && options?.allowsInlineMediaPlayback != newOptions.allowsInlineMediaPlayback {
             configuration.allowsInlineMediaPlayback = newOptions.allowsInlineMediaPlayback
         }
-        
+
         //        if newOptionsMap["keyboardDisplayRequiresUserAction"] != nil && browserOptions?.keyboardDisplayRequiresUserAction != newOptions.keyboardDisplayRequiresUserAction {
         //            self.webView.keyboardDisplayRequiresUserAction = newOptions.keyboardDisplayRequiresUserAction
         //        }
-        
+
         if newOptionsMap["suppressesIncrementalRendering"] != nil && options?.suppressesIncrementalRendering != newOptions.suppressesIncrementalRendering {
             configuration.suppressesIncrementalRendering = newOptions.suppressesIncrementalRendering
         }
-        
+
         if newOptionsMap["allowsBackForwardNavigationGestures"] != nil && options?.allowsBackForwardNavigationGestures != newOptions.allowsBackForwardNavigationGestures {
             allowsBackForwardNavigationGestures = newOptions.allowsBackForwardNavigationGestures
         }
-        
+
         if newOptionsMap["allowsLinkPreview"] != nil && options?.allowsLinkPreview != newOptions.allowsLinkPreview {
             if #available(iOS 9.0, *) {
                 allowsLinkPreview = newOptions.allowsLinkPreview
             }
         }
-        
+
         if newOptionsMap["ignoresViewportScaleLimits"] != nil && options?.ignoresViewportScaleLimits != newOptions.ignoresViewportScaleLimits {
             if #available(iOS 10.0, *) {
                 configuration.ignoresViewportScaleLimits = newOptions.ignoresViewportScaleLimits
             }
         }
-        
+
         if newOptionsMap["allowsInlineMediaPlayback"] != nil && options?.allowsInlineMediaPlayback != newOptions.allowsInlineMediaPlayback {
             configuration.allowsInlineMediaPlayback = newOptions.allowsInlineMediaPlayback
         }
-        
+
         if newOptionsMap["allowsPictureInPictureMediaPlayback"] != nil && options?.allowsPictureInPictureMediaPlayback != newOptions.allowsPictureInPictureMediaPlayback {
             if #available(iOS 9.0, *) {
                 configuration.allowsPictureInPictureMediaPlayback = newOptions.allowsPictureInPictureMediaPlayback
             }
         }
-        
+
         if newOptionsMap["javaScriptCanOpenWindowsAutomatically"] != nil && options?.javaScriptCanOpenWindowsAutomatically != newOptions.javaScriptCanOpenWindowsAutomatically {
             configuration.preferences.javaScriptCanOpenWindowsAutomatically = newOptions.javaScriptCanOpenWindowsAutomatically
         }
-        
+
         if newOptionsMap["javaScriptEnabled"] != nil && options?.javaScriptEnabled != newOptions.javaScriptEnabled {
             configuration.preferences.javaScriptEnabled = newOptions.javaScriptEnabled
         }
-        
+
         if newOptionsMap["userAgent"] != nil && options?.userAgent != newOptions.userAgent && (newOptions.userAgent != "") {
             if #available(iOS 9.0, *) {
                 customUserAgent = newOptions.userAgent
             }
         }
-        
+
         if newOptionsMap["clearCache"] != nil && newOptions.clearCache {
             clearCache()
         }
-        
+
         self.options = newOptions
     }
-    
+
     func getOptions() -> [String: Any]? {
         if (self.options == nil) {
             return nil
         }
         return self.options!.getHashMap()
     }
-    
+
     public func clearCache() {
         if #available(iOS 9.0, *) {
             //let websiteDataTypes = NSSet(array: [WKWebsiteDataTypeDiskCache, WKWebsiteDataTypeMemoryCache])
@@ -416,7 +441,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
         } else {
             var libraryPath = NSSearchPathForDirectoriesInDomains(FileManager.SearchPathDirectory.libraryDirectory, FileManager.SearchPathDomainMask.userDomainMask, false).first!
             libraryPath += "/Cookies"
-            
+
             do {
                 try FileManager.default.removeItem(atPath: libraryPath)
             } catch {
@@ -425,29 +450,29 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
             URLCache.shared.removeAllCachedResponses()
         }
     }
-    
+
     public func injectDeferredObject(source: String, withWrapper jsWrapper: String, result: FlutterResult?) {
         let jsonData: Data? = try? JSONSerialization.data(withJSONObject: [source], options: [])
         let sourceArrayString = String(data: jsonData!, encoding: String.Encoding.utf8)
         if sourceArrayString != nil {
             let sourceString: String? = (sourceArrayString! as NSString).substring(with: NSRange(location: 1, length: (sourceArrayString?.count ?? 0) - 2))
             let jsToInject = String(format: jsWrapper, sourceString!)
-            
+
             evaluateJavaScript(jsToInject, completionHandler: {(value, error) in
                 if result == nil {
                     return
                 }
-                
+
                 if error != nil {
                     let userInfo = (error! as NSError).userInfo
                     self.onConsoleMessage(sourceURL: (userInfo["WKJavaScriptExceptionSourceURL"] as? URL)?.absoluteString ?? "", lineNumber: userInfo["WKJavaScriptExceptionLineNumber"] as! Int, message: userInfo["WKJavaScriptExceptionMessage"] as! String, messageLevel: "ERROR")
                 }
-                
+
                 if value == nil {
                     result!("")
                     return
                 }
-                
+
                 do {
                     let data: Data = ("[" + String(describing: value!) + "]").data(using: String.Encoding.utf8, allowLossyConversion: false)!
                     let json: Array<Any> = try JSONSerialization.jsonObject(with: data, options: []) as! Array<Any>
@@ -460,31 +485,31 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
                 } catch let error as NSError {
                     result!(FlutterError(code: "InAppBrowserFlutterPlugin", message: "Failed to load: \(error.localizedDescription)", details: error))
                 }
-                
+
             })
         }
     }
-    
+
     public func injectScriptCode(source: String, result: FlutterResult?) {
         let jsWrapper = "(function(){return JSON.stringify(eval(%@));})();"
         injectDeferredObject(source: source, withWrapper: jsWrapper, result: result)
     }
-    
+
     public func injectScriptFile(urlFile: String) {
         let jsWrapper = "(function(d) { var c = d.createElement('script'); c.src = %@; d.body.appendChild(c); })(document);"
         injectDeferredObject(source: urlFile, withWrapper: jsWrapper, result: nil)
     }
-    
+
     public func injectStyleCode(source: String) {
         let jsWrapper = "(function(d) { var c = d.createElement('style'); c.innerHTML = %@; d.body.appendChild(c); })(document);"
         injectDeferredObject(source: source, withWrapper: jsWrapper, result: nil)
     }
-    
+
     public func injectStyleFile(urlFile: String) {
         let jsWrapper = "(function(d) { var c = d.createElement('link'); c.rel='stylesheet', c.type='text/css'; c.href = %@; d.body.appendChild(c); })(document);"
         injectDeferredObject(source: urlFile, withWrapper: jsWrapper, result: nil)
     }
-    
+
     public func getCopyBackForwardList() -> [String: Any] {
         let currentList = backForwardList
         let currentIndex = currentList.backList.count
@@ -493,9 +518,9 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
             completeList.append(currentList.currentItem!)
         }
         completeList.append(contentsOf: currentList.forwardList)
-        
+
         var history: [[String: String]] = []
-        
+
         for historyItem in completeList {
             var historyItemMap: [String: String] = [:]
             historyItemMap["originalUrl"] = historyItem.initialURL.absoluteString
@@ -503,33 +528,33 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
             historyItemMap["url"] = historyItem.url.absoluteString
             history.append(historyItemMap)
         }
-        
+
         var result: [String: Any] = [:]
         result["history"] = history
         result["currentIndex"] = currentIndex
-        
+
         return result;
     }
-    
+
     public func webView(_ webView: WKWebView,
                  decidePolicyFor navigationAction: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        
+
         if let url = navigationAction.request.url {
-            
+
             if url.absoluteString != url.absoluteString && (options?.useOnLoadResource)! {
                 WKNavigationMap[url.absoluteString] = [
                     "startTime": currentTimeInMilliSeconds(),
                     "request": navigationAction.request
                 ]
             }
-            
+
             if navigationAction.navigationType == .linkActivated && (options?.useShouldOverrideUrlLoading)! {
                 shouldOverrideUrlLoading(url: url)
                 decisionHandler(.cancel)
                 return
             }
-            
+
             if navigationAction.navigationType == .linkActivated || navigationAction.navigationType == .backForward {
                 currentURL = url
                 if IABController != nil {
@@ -537,14 +562,14 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
                 }
             }
         }
-        
+
         decisionHandler(.allow)
     }
-    
+
     public func webView(_ webView: WKWebView,
                  decidePolicyFor navigationResponse: WKNavigationResponse,
                  decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
-        
+
         if (options?.useOnLoadResource)! {
             if let url = navigationResponse.response.url {
                 if WKNavigationMap[url.absoluteString] != nil {
@@ -555,10 +580,10 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
                 }
             }
         }
-        
+
         decisionHandler(.allow)
     }
-    
+
     //    func webView(_ webView: WKWebView,
     //                 decidePolicyFor navigationResponse: WKNavigationResponse,
     //                 decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
@@ -592,28 +617,28 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
     //                }
     //            }
     //    }
-    
+
     public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
         self.startPageTime = currentTimeInMilliSeconds()
         onLoadStart(url: (currentURL?.absoluteString)!)
-        
+
         if IABController != nil {
             // loading url, start spinner, update back/forward
             IABController!.backButton.isEnabled = canGoBack
             IABController!.forwardButton.isEnabled = canGoForward
-            
+
             if (IABController!.browserOptions?.spinner)! {
                 IABController!.spinner.startAnimating()
             }
         }
     }
-    
+
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         self.WKNavigationMap = [:]
         currentURL = url
         onLoadStop(url: (currentURL?.absoluteString)!)
         evaluateJavaScript(platformReadyJS, completionHandler: nil)
-        
+
         if IABController != nil {
             IABController!.updateUrlTextField(url: (currentURL?.absoluteString)!)
             IABController!.backButton.isEnabled = canGoBack
@@ -621,23 +646,23 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
             IABController!.spinner.stopAnimating()
         }
     }
-    
+
     public func webView(_ view: WKWebView,
                  didFailProvisionalNavigation navigation: WKNavigation!,
                  withError error: Error) {
         webView(view, didFail: navigation, withError: error)
     }
-    
+
     public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         onLoadError(url: (currentURL?.absoluteString)!, error: error)
-        
+
         if IABController != nil {
             IABController!.backButton.isEnabled = canGoBack
             IABController!.forwardButton.isEnabled = canGoForward
             IABController!.spinner.stopAnimating()
         }
     }
-    
+
     public func scrollViewDidScroll(_ scrollView: UIScrollView) {
         if navigationDelegate != nil {
             let x = Int(scrollView.contentOffset.x / scrollView.contentScaleFactor)
@@ -656,7 +681,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
             channel.invokeMethod("onLoadStart", arguments: arguments)
         }
     }
-    
+
     public func onLoadStop(url: String) {
         var arguments: [String: Any] = ["url": url]
         if IABController != nil {
@@ -666,7 +691,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
             channel.invokeMethod("onLoadStop", arguments: arguments)
         }
     }
-    
+
     public func onLoadError(url: String, error: Error) {
         var arguments: [String: Any] = ["url": url, "code": error._code, "message": error.localizedDescription]
         if IABController != nil {
@@ -676,7 +701,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
             channel.invokeMethod("onLoadError", arguments: arguments)
         }
     }
-    
+
     public func onProgressChanged(progress: Int) {
         var arguments: [String: Any] = ["progress": progress]
         if IABController != nil {
@@ -686,14 +711,14 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
             channel.invokeMethod("onProgressChanged", arguments: arguments)
         }
     }
-    
+
     public func onLoadResource(response: URLResponse, fromRequest request: URLRequest?, withData data: Data, startTime: Int64, duration: Int64) {
         var headersResponse = (response as! HTTPURLResponse).allHeaderFields as! [String: String]
         headersResponse.lowercaseKeys()
-        
+
         var headersRequest = request!.allHTTPHeaderFields! as [String: String]
         headersRequest.lowercaseKeys()
-        
+
         var arguments: [String : Any] = [
             "response": [
                 "url": response.url!.absoluteString,
@@ -716,7 +741,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
             channel.invokeMethod("onLoadResource", arguments: arguments)
         }
     }
-    
+
     public func onScrollChanged(x: Int, y: Int) {
         var arguments: [String: Any] = ["x": x, "y": y]
         if IABController != nil {
@@ -726,7 +751,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
             channel.invokeMethod("onScrollChanged", arguments: arguments)
         }
     }
-    
+
     public func shouldOverrideUrlLoading(url: URL) {
         var arguments: [String: Any] = ["url": url.absoluteString]
         if IABController != nil {
@@ -736,7 +761,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
             channel.invokeMethod("shouldOverrideUrlLoading", arguments: arguments)
         }
     }
-    
+
     public func onConsoleMessage(sourceURL: String, lineNumber: Int, message: String, messageLevel: String) {
         var arguments: [String: Any] = ["sourceURL": sourceURL, "lineNumber": lineNumber, "message": message, "messageLevel": messageLevel]
         if IABController != nil {
@@ -746,13 +771,13 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
             channel.invokeMethod("onConsoleMessage", arguments: arguments)
         }
     }
-    
+
     public func onCallJsHandler(handlerName: String, _callHandlerID: Int64, args: String) {
         var arguments: [String: Any] = ["handlerName": handlerName, "args": args]
         if IABController != nil {
             arguments["uuid"] = IABController!.uuid
         }
-        
+
         if let channel = getChannel() {
             channel.invokeMethod("onCallJsHandler", arguments: arguments, result: {(result) -> Void in
                 if result is FlutterError {
@@ -769,7 +794,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
             })
         }
     }
-    
+
     public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         if message.name.starts(with: "console") {
             var messageLevel = "LOG"
@@ -801,7 +826,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
             if let resource = convertToDictionary(text: message.body as! String) {
                 // escape special chars
                 let resourceName = (resource["name"] as! String).addingPercentEncoding(withAllowedCharacters:NSCharacterSet.urlQueryAllowed)
-                
+
                 let url = URL(string: resourceName!)!
                 if !UIApplication.shared.canOpenURL(url) {
                     return
@@ -834,7 +859,7 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
             onCallJsHandler(handlerName: handlerName, _callHandlerID: _callHandlerID, args: args)
         }
     }
-    
+
     private func getChannel() -> FlutterMethodChannel? {
         return (IABController != nil) ? SwiftFlutterPlugin.channel! : ((IAWController != nil) ? IAWController!.channel! : nil);
     }

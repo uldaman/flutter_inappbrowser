@@ -880,12 +880,7 @@ class InAppWebViewController {
         List<dynamic> args = jsonDecode(call.arguments["args"]);
         if (javaScriptHandlersMap.containsKey(handlerName)) {
           // convert result to json
-          try {
-            return jsonEncode(await javaScriptHandlersMap[handlerName](args));
-          } catch (error) {
-            print(error);
-            return null;
-          }
+          return jsonEncode(await javaScriptHandlersMap[handlerName](args));
         }
         break;
       default:

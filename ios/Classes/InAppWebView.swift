@@ -100,7 +100,9 @@ window.\(JAVASCRIPT_BRIDGE_NAME).callHandler = function() {
     var _callHandlerID = setTimeout(function(){});
     window.webkit.messageHandlers['callHandler'].postMessage( {'handlerName': arguments[0], '_callHandlerID': _callHandlerID, 'args': JSON.stringify(Array.prototype.slice.call(arguments, 1))} );
     return new Promise(function(resolve, reject) {
-        window.\(JAVASCRIPT_BRIDGE_NAME)[_callHandlerID] = resolve;
+        window.\(JAVASCRIPT_BRIDGE_NAME)[_callHandlerID] = {}
+        window.\(JAVASCRIPT_BRIDGE_NAME)[_callHandlerID]['resolve'] = resolve;
+        window.\(JAVASCRIPT_BRIDGE_NAME)[_callHandlerID]['reject'] = reject;
     });
 }
 """
@@ -781,15 +783,15 @@ public class InAppWebView: WKWebView, UIScrollViewDelegate, WKUIDelegate, WKNavi
         if let channel = getChannel() {
             channel.invokeMethod("onCallJsHandler", arguments: arguments, result: {(result) -> Void in
                 if result is FlutterError {
-                    print((result as! FlutterError).message)
-                }
+                    let err = (result as! FlutterError).message!
+                    self.evaluateJavaScript("window.\(JAVASCRIPT_BRIDGE_NAME)[\(_callHandlerID)]['reject'](`\(err)`); delete window.\(JAVASCRIPT_BRIDGE_NAME)[\(_callHandlerID)];", completionHandler: nil)                }
                 else if (result as? NSObject) == FlutterMethodNotImplemented {}
                 else {
                     var json = "null"
                     if let r = result {
                         json = r as! String
                     }
-                    self.evaluateJavaScript("window.\(JAVASCRIPT_BRIDGE_NAME)[\(_callHandlerID)](\(json)); delete window.\(JAVASCRIPT_BRIDGE_NAME)[\(_callHandlerID)];", completionHandler: nil)
+                    self.evaluateJavaScript("window.\(JAVASCRIPT_BRIDGE_NAME)[\(_callHandlerID)]['resolve'](\(json)); delete window.\(JAVASCRIPT_BRIDGE_NAME)[\(_callHandlerID)];", completionHandler: nil)
                 }
             })
         }

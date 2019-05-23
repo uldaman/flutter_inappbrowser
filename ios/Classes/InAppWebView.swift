@@ -69,32 +69,32 @@ let resourceObserverJS = """
 
 let JAVASCRIPT_BRIDGE_NAME = "flutter_inappbrowser"
 
-// window.connex = {}
-// window.connex.thor = {}
-// window.connex.thor.genesis = {}
-// window.connex.thor.genesis.id = '0x00000000851caf3cfdb6e899cf5958bfb1ac3413d346d43539627e6be7ec1b4a'
+let vechainConnexJS  = try! String(contentsOf: URL(fileURLWithPath: Bundle.main.path(forResource: "connex", ofType: "js")!), encoding: .utf8)
 
-let pageChangeEmitJs = """
+let wedChangedEmitJs = """
+window.addEventListener('load',function(e){
+    window.flutter_inappbrowser.callHandler('webChanged');
+});
 window.addEventListener('unload',function(e){
-    window.flutter_inappbrowser.callHandler('pageChange');
+    window.flutter_inappbrowser.callHandler('webChanged');
 });
 window.addEventListener('hashchange', function(e) {
-    window.flutter_inappbrowser.callHandler('pageChange');
+    window.flutter_inappbrowser.callHandler('webChanged');
 });
 var pushState = history.pushState;
 history.pushState = function(state) {
     if (typeof history.onpushstate == "function") {
         history.onpushstate({state: state});
     }
-    window.flutter_inappbrowser.callHandler('pageChange');
+    window.flutter_inappbrowser.callHandler('webChanged');
     return pushState.apply(history, arguments);
 };
 window.addEventListener('popstate',function(e){
-    window.flutter_inappbrowser.callHandler('pageChange');
+    window.flutter_inappbrowser.callHandler('webChanged');
 });
 """
 
-let javaScriptBridgeJS = pageChangeEmitJs + """
+let javaScriptBridgeJS = wedChangedEmitJs + """
 window.\(JAVASCRIPT_BRIDGE_NAME) = {};
 window.\(JAVASCRIPT_BRIDGE_NAME).callHandler = function() {
     var _callHandlerID = setTimeout(function(){});
@@ -104,8 +104,8 @@ window.\(JAVASCRIPT_BRIDGE_NAME).callHandler = function() {
         window.\(JAVASCRIPT_BRIDGE_NAME)[_callHandlerID]['resolve'] = resolve;
         window.\(JAVASCRIPT_BRIDGE_NAME)[_callHandlerID]['reject'] = reject;
     });
-}
-"""
+};
+""" + vechainConnexJS
 
 let platformReadyJS = "window.dispatchEvent(new Event('flutterInAppBrowserPlatformReady'));";
 

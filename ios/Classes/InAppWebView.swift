@@ -72,25 +72,22 @@ let JAVASCRIPT_BRIDGE_NAME = "flutter_inappbrowser"
 let vechainConnexJS  = try! String(contentsOf: URL(fileURLWithPath: Bundle.main.path(forResource: "connex", ofType: "js")!), encoding: .utf8)
 
 let wedChangedEmitJs = """
-window.addEventListener('load',function(e){
-    window.flutter_inappbrowser.callHandler('webChanged');
-});
-window.addEventListener('unload',function(e){
-    window.flutter_inappbrowser.callHandler('webChanged');
+window.addEventListener('error', function(message, source, lineno) {
+    window.flutter_inappbrowser.callHandler('errorLog', lineno, message);
 });
 window.addEventListener('hashchange', function(e) {
-    window.flutter_inappbrowser.callHandler('webChanged');
+    window.flutter_inappbrowser.callHandler('navigatedInPage');
 });
 var pushState = history.pushState;
 history.pushState = function(state) {
     if (typeof history.onpushstate == "function") {
         history.onpushstate({state: state});
     }
-    window.flutter_inappbrowser.callHandler('webChanged');
+    window.flutter_inappbrowser.callHandler('navigatedInPage');
     return pushState.apply(history, arguments);
 };
 window.addEventListener('popstate',function(e){
-    window.flutter_inappbrowser.callHandler('webChanged');
+    window.flutter_inappbrowser.callHandler('navigatedInPage');
 });
 """
 

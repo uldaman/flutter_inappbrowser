@@ -657,6 +657,10 @@ class InAppWebView extends StatefulWidget {
   final Map<String, String> initialHeaders;
   ///Initial options that will be used.
   final Map<String, dynamic> initialOptions;
+
+  ///Initial javascript that will be used.
+  final String initialJs;
+
   /// `gestureRecognizers` specifies which gestures should be consumed by the web view.
   /// It is possible for other gesture recognizers to be competing with the web view on pointer
   /// events, e.g if the web view is inside a [ListView] the [ListView] will want to handle
@@ -673,6 +677,7 @@ class InAppWebView extends StatefulWidget {
     this.initialData,
     this.initialHeaders = const {},
     this.initialOptions = const {},
+    this.initialJs,
     this.onWebViewCreated,
     this.onLoadStart,
     this.onLoadStop,
@@ -714,12 +719,13 @@ class _InAppWebViewState extends State<InAppWebView> {
           gestureRecognizers: widget.gestureRecognizers,
           layoutDirection: TextDirection.rtl,
           creationParams: <String, dynamic>{
-              'initialUrl': widget.initialUrl,
-              'initialFile': widget.initialFile,
-              'initialData': widget.initialData?.toMap(),
-              'initialHeaders': widget.initialHeaders,
-              'initialOptions': widget.initialOptions
-            },
+            'initialUrl': widget.initialUrl,
+            'initialFile': widget.initialFile,
+            'initialData': widget.initialData?.toMap(),
+            'initialHeaders': widget.initialHeaders,
+            'initialOptions': widget.initialOptions,
+            'initialJs': widget.initialJs
+          },
           creationParamsCodec: const StandardMessageCodec(),
         ),
       );
@@ -733,7 +739,8 @@ class _InAppWebViewState extends State<InAppWebView> {
           'initialFile': widget.initialFile,
           'initialData': widget.initialData?.toMap(),
           'initialHeaders': widget.initialHeaders,
-          'initialOptions': widget.initialOptions
+          'initialOptions': widget.initialOptions,
+          'initialJs': widget.initialJs
         },
         creationParamsCodec: const StandardMessageCodec(),
       );

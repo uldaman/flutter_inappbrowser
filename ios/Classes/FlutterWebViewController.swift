@@ -19,7 +19,8 @@ public class FlutterWebViewController: NSObject, FlutterPlatformView {
         super.init()
         self.registrar = registrar
         self.viewId = viewId
-        
+
+        let initialJs = args["initialJs"] as? String
         let initialUrl = (args["initialUrl"] as? String)!
         let initialFile = args["initialFile"] as? String
         let initialData = args["initialData"] as? [String: String]
@@ -29,7 +30,12 @@ public class FlutterWebViewController: NSObject, FlutterPlatformView {
         let options = InAppWebViewOptions()
         options.parse(options: initialOptions)
         let preWebviewConfiguration = InAppWebView.preWKWebViewConfiguration(options: options)
-        
+        if initialJs != nil {
+            let sourceJs = initialJs!.hasSuffix(";") ? initialJs! : "\(initialJs!);"
+            let userScript = WKUserScript(source: sourceJs, injectionTime: .atDocumentStart, forMainFrameOnly: false)
+            preWebviewConfiguration.userContentController.addUserScript(userScript)
+        }
+
         webView = InAppWebView(frame: frame, configuration: preWebviewConfiguration, IABController: nil, IAWController: self)
         let channelName = "com.pichillilorenzo/flutter_inappwebview_" + String(viewId)
         self.channel = FlutterMethodChannel(name: channelName, binaryMessenger: registrar.messenger())

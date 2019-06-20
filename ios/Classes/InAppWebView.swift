@@ -72,9 +72,9 @@ let JAVASCRIPT_BRIDGE_NAME = "flutter_inappbrowser"
 let vechainConnexJS  = try! String(contentsOf: URL(fileURLWithPath: Bundle.main.path(forResource: "connex", ofType: "js")!), encoding: .utf8)
 
 let wedChangedEmitJs = """
-window.addEventListener('error', function(message, source, lineno) {
-    window.flutter_inappbrowser.callHandler('errorLog', lineno, message);
-});
+window.onerror = function(e) {
+  window.flutter_inappbrowser.callHandler('errorLog', e);
+};
 window.addEventListener('hashchange', function(e) {
     window.flutter_inappbrowser.callHandler('navigatedInPage');
 });

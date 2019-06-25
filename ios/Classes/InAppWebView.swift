@@ -72,9 +72,12 @@ let JAVASCRIPT_BRIDGE_NAME = "flutter_inappbrowser"
 let vechainConnexJS  = try! String(contentsOf: URL(fileURLWithPath: Bundle.main.path(forResource: "connex", ofType: "js")!), encoding: .utf8)
 
 let wedChangedEmitJs = """
-window.onerror = function(e) {
-  window.flutter_inappbrowser.callHandler('errorLog', e);
-};
+window.addEventListener('error', function(e) {
+    console.error('Unhandled js error: ', e.message);
+});
+window.addEventListener('unhandledrejection', function(e) {
+    console.error('Unhandled promise rejection:' , e.reason);
+});
 window.addEventListener('hashchange', function(e) {
     window.flutter_inappbrowser.callHandler('navigatedInPage');
 });
